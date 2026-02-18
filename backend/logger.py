@@ -1,0 +1,13 @@
+import logging
+
+def setup():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s ",
+        handlers= [
+            logging.FileHandler("aoo.log"),
+            logging.StreamHandler()
+        ]
+    )
+
+    return logging.getLogger("RAG-app")
