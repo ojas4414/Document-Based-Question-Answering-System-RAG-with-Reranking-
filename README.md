@@ -38,6 +38,11 @@ This architecture is widely used in enterprise search, knowledge assistants, and
 
 5. **LLM Answer Generation**
    Retrieved context is passed to an LLM to generate grounded responses.
+   Generation calls the **OpenAI API first**, and automatically falls back to a
+   **local Ollama model** if that call fails for any reason — missing or invalid
+   key, rate limit, exhausted credits, or network error. Both paths build the
+   identical prompt, so answers stay comparable, and every call logs which path
+   produced it.
 
 6. **FastAPI Backend**
    Clean REST endpoints expose ingestion, retrieval, and query functionality.
@@ -50,6 +55,7 @@ This architecture is widely used in enterprise search, knowledge assistants, and
 ✔ FAISS-powered semantic search
 ✔ Trained reranker for improved relevance
 ✔ Grounded answers using retrieved context
+✔ Resilient generation: OpenAI primary with automatic local-model fallback
 ✔ Modular pipeline design
 ✔ Logging & evaluation support
 
@@ -78,7 +84,8 @@ Runs the full RAG pipeline and returns the final answer.
 * FAISS
 * SentenceTransformers
 * Scikit-learn
-* OpenAI API
+* OpenAI API (primary generation)
+* Ollama (local fallback generation)
 
 ---
 
@@ -97,10 +104,58 @@ cd Document-Based-Question-Answering-System-RAG-with-Reranking-
 pip install -r requirements.txt
 ```
 
-### 3️⃣ Start the API server
+### 3️⃣ Configure generation
+
+Generation tries OpenAI first and falls back to a local Ollama model, so you can
+run this with an OpenAI key, without one, or with both.
+
+**OpenAI path (primary)** — set your key as an environment variable:
+
+```powershell
+# Windows PowerShell
+$env:OPENAI_API_KEY = "sk-..."
+```
+
+```bash
+# macOS / Linux
+export OPENAI_API_KEY="sk-..."
+```
+
+**Ollama path (fallback)** — install [Ollama](https://ollama.com), then pull a model:
 
 ```
-uvicorn main:app --reload
+ollama pull llama3.2:3b
+```
+
+Ollama loads the model into memory on first use, which can take 30-60s on a
+CPU-only machine and may return a `500` while it does. Warm it up once before
+your first `/query` so the fallback answers immediately:
+
+```
+curl http://localhost:11434/api/generate -d '{"model":"llama3.2:3b","prompt":"hi","stream":false}'
+```
+
+Optional overrides (defaults shown):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | *unset* | If absent, generation goes straight to the fallback |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model used for generation |
+| `OLLAMA_MODEL` | `llama3` | Local model used for the fallback |
+
+If neither path is available, `/query` raises a clear error naming both causes.
+
+### 4️⃣ Add your documents
+
+Drop one or more PDFs into `data/documents/`. The loader indexes every `*.pdf`
+in that folder.
+
+### 5️⃣ Start the API server
+
+Run from the **repository root** — the backend uses package-qualified imports:
+
+```
+uvicorn backend.main:app --reload
 ```
 
 Server will run at:
@@ -109,19 +164,41 @@ Server will run at:
 http://127.0.0.1:8000
 ```
 
-### 4️⃣ Open API documentation
+### 6️⃣ Open API documentation
 
 ```
 http://127.0.0.1:8000/docs
 ```
 
-### 5️⃣ Ingest documents
+### 7️⃣ Ingest documents
 
-Use the `/ingest` endpoint to build the vector index.
+`POST /ingest` reads every PDF in `data/documents/`, chunks it, embeds the
+chunks, and writes the FAISS index:
 
-### 6️⃣ Ask questions
+```
+curl -X POST http://127.0.0.1:8000/ingest
+```
 
-Send a request to `/query` to receive grounded answers.
+### 8️⃣ Ask questions
+
+```
+curl -X POST http://127.0.0.1:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query":"What does the report say about water consumption?"}'
+```
+
+The server log records which generation path answered each call:
+
+```
+INFO | RAG-app | GENERATION PATH = OPENAI (model=gpt-4o-mini)
+```
+
+or, when OpenAI is unavailable:
+
+```
+WARNING | RAG-app | OpenAI generation failed (...) - falling back to Ollama
+INFO    | RAG-app | GENERATION PATH = OLLAMA FALLBACK (model=llama3.2:3b)
+```
 
 ---
 
