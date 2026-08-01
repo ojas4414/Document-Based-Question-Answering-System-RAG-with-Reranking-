@@ -1,0 +1,31 @@
+# Pinned to the versions this project is currently verified against (Python 3.10).
+
+# API layer
+fastapi==0.128.0
+uvicorn==0.40.0
+pydantic==2.12.5
+
+# Document loading + chunking
+pypdf==6.5.0
+
+# Embeddings (pulls in torch as a transitive dependency)
+sentence-transformers==5.2.0
+
+# Vector index
+faiss-cpu==1.13.2
+
+# Reranker features + logistic regression
+scikit-learn==1.7.2
+numpy==2.2.6
+
+# Generation: OpenAI primary, Ollama fallback over HTTP
+openai==2.14.0
+requests==2.32.5
+
+# Optional UI (frontend/app.py)
+streamlit==1.52.2
+
+# NOTE: python-multipart is deliberately omitted. It is only needed for
+# multipart/form-data file uploads, and POST /ingest reads PDFs from the
+# data/documents/ folder rather than accepting an upload. Add it if you
+# later change /ingest to take an UploadFile.
