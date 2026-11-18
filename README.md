@@ -248,6 +248,47 @@ Limitations:
 
 ---
 
+## Data model
+
+A SQLite schema for documents, chunks, queries and relevance feedback, in
+[backend/schema.sql](backend/schema.sql), with queries in [backend/db.py](backend/db.py).
+It is not wired into the API yet: the app still stores chunks and feedback in pickle files
+(`index/chunks.pkl`, `data/feedback.pkl`), and this schema is the intended replacement.
+
+```
+documents 1──* chunks 1──* feedback *──1 queries
+```
+
+| Table | Key columns | Why |
+|---|---|---|
+| `documents` | `id` PK, `filename` UNIQUE, `sha256` | One row per PDF; the hash tells a changed file from an unchanged one on re-ingest |
+| `chunks` | `id` PK, `document_id` FK, UNIQUE `(document_id, position)`, `faiss_id` UNIQUE | A chunk's identity is its place in its document. `faiss_id` is kept separate because FAISS row numbers are reassigned whenever the index is rebuilt |
+| `queries` | `id` PK, `text`, `created_at` | One row per question asked |
+| `feedback` | `query_id` FK, `chunk_id` FK, `rank_shown`, `label` CHECK 0/1 | A user's relevant / not-relevant vote on a chunk shown at a given rank; the CHECK keeps labels usable by `train_reranker.py` |
+
+Foreign keys use `ON DELETE CASCADE`, so deleting a document removes its chunks and their feedback.
+SQLite enforces foreign keys only when `PRAGMA foreign_keys = ON` is set, which `db.connect()` does.
+
+Indexes: SQLite does not index foreign-key columns automatically, so `feedback` gets
+`idx_feedback_chunk_time (chunk_id, created_at)` and `idx_feedback_query (query_id)`.
+
+Queries in `backend/db.py`:
+
+- `FEEDBACK_WITH_SOURCE` (join): every vote with its query text, document and chunk position.
+- `DOCUMENT_FEEDBACK_STATS` (GROUP BY): votes and relevant-rate per document, `HAVING` a minimum vote count.
+- `LATEST_LABELS` (window function): `ROW_NUMBER() OVER (PARTITION BY query_id, chunk_id ORDER BY created_at DESC)` keeps only the newest vote per (query, chunk), so a user who changes their mind does not leave two contradictory training labels.
+- `CHUNK_FEEDBACK_HISTORY` (uses an index): all votes on one chunk, newest first. The composite index covers both the filter and the sort; SQLite's plan is `SEARCH feedback USING INDEX idx_feedback_chunk_time (chunk_id=?)`, with no temp B-tree for the `ORDER BY`.
+
+Tests ([tests/test_db.py](tests/test_db.py)) build a temporary database, check each query's exact
+output, the constraints, the cascade, and the query plan:
+
+```
+pip install -r requirements-dev.txt
+python -m pytest tests/test_db.py
+```
+
+---
+
 ## 📌 Example Use Cases
 
 * Research document search
