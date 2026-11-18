@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List ,Optional
+from typing import List ,Optional, Literal
 
 class QueryRequest(BaseModel):
     query: str
@@ -12,5 +12,5 @@ class QueryResponse(BaseModel):
 class FeedbackRequest(BaseModel):
     query:str
     chunk:str
-    feedback_:str
+    label:Literal[0,1]
 

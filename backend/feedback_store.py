@@ -3,7 +3,7 @@ from pathlib import Path
 
 FEEDBACK_PATH = Path("data/feedback.pkl")
 
-def save_feedback(query: str, chunk: str, feedback_: str):
+def save_feedback(query: str, chunk: str, label: int):
     FEEDBACK_PATH.parent.mkdir(exist_ok=True)
 
     if FEEDBACK_PATH.exists():
@@ -12,7 +12,7 @@ def save_feedback(query: str, chunk: str, feedback_: str):
     else:
         data = []
 
-    data.append((query, chunk, feedback_))
+    data.append((query, chunk, int(label)))
 
     with open(FEEDBACK_PATH, "wb") as f:
         pickle.dump(data, f)

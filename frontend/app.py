@@ -57,21 +57,22 @@ if st.session_state.data is not None:
     st.divider()
     st.subheader("Your Feedback")
 
-    feedback_text = st.text_area(
-        "Feedback",
-        placeholder="Tell us what was helpful, missing, or incorrect"
+    relevant = st.radio(
+        "Was the top source relevant to your question?",
+        ["Yes", "No"],
+        horizontal=True
     )
 
     if st.button("Submit Feedback", use_container_width=True):
-        if not feedback_text.strip():
-            st.warning("Please enter feedback before submitting.")
-        else:
-            requests.post(
-                f"{BACKEND_URL}/feedback",
-                json={
-                    "query": query,
-                    "chunk": st.session_state.data["sources"][0],
-                    "feedback_text": feedback_text
-                }
-            )
+        r = requests.post(
+            f"{BACKEND_URL}/feedback",
+            json={
+                "query": query,
+                "chunk": st.session_state.data["sources"][0],
+                "label": 1 if relevant == "Yes" else 0
+            }
+        )
+        if r.status_code == 200:
             st.success("Thanks! Your feedback was recorded.")
+        else:
+            st.error("Feedback was not recorded. Check backend logs.")

@@ -80,7 +80,7 @@ def feedback(feedback: FeedbackRequest):
     save_feedback(
         feedback.query,
         feedback.chunk,
-        feedback.feedback_
+        feedback.label
     )
     logger.info("User feedback recorded")
     return {"status":"ok"}
