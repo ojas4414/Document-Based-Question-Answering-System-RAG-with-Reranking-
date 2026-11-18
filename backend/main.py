@@ -9,7 +9,6 @@ from backend.query import query_search
 from backend.logger import setup
 from backend.feedback_store import save_feedback
 from backend.schemas import FeedbackRequest
-from backend.query import rerank_results
 from backend.LLM import generate_answer
 ############################################################
 
@@ -25,9 +24,7 @@ def Query_docs(request:QueryRequest):
     q=request.query
     results=query_search(q,top_k=10)
 
-    reranked=rerank_results(q,results)
-
-    context_chunks=[r["chunk"] for r in reranked[:5]]
+    context_chunks=[r["chunk"] for r in results[:5]]
 
     answer=generate_answer(context_chunks,q)
 
