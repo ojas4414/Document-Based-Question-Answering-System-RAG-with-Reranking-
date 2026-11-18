@@ -24,7 +24,7 @@ def rerank_results(query,results):
 logger=setup()
 Index_Path="index/faiss.index"
 
-def query_search(query:str,top_k: int =5):
+def faiss_search(query,top_k=5):
     logger.info(f"Running retrievel for query:{query}")
     try :
         index=faiss.read_index(Index_Path)
@@ -47,13 +47,15 @@ def query_search(query:str,top_k: int =5):
         if indx<0:
             continue
         results.append({
+            "id":int(indx),
             "chunk":chunks[indx],
             "score":float(score)
         }
         )
-    logger.info(f"")
-    results=rerank_results(query,results)
     return results
+
+def query_search(query:str,top_k: int =5):
+    return rerank_results(query,faiss_search(query,top_k))
 def fine_tune_results(query_emb,chunks,chunk_emb,top_k=5 ):
     logger.info(f"Reranking {len(chunks)} chunks") 
 
