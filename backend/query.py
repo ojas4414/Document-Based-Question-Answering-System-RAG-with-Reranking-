@@ -40,13 +40,12 @@ def query_search(query:str,top_k: int =5):
     logger.info(f"Faiss search complete: {top_k}")
     logger.info(f"{len(indices)} candidate chunks")
     
-    if not indices.any():
-        logger.info("Faiss has returned no results")
-
     chunks=load_chunks()
     results=[]
 
     for score,indx in zip(scores[0],indices[0]):
+        if indx<0:
+            continue
         results.append({
             "chunk":chunks[indx],
             "score":float(score)
