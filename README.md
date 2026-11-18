@@ -202,6 +202,52 @@ INFO    | RAG-app | GENERATION PATH = OLLAMA FALLBACK (model=llama3.2:3b)
 
 ---
 
+## Evaluation
+
+Retrieval was measured on 25 questions about one document, the Infosys ESG Report 2025-26
+(162 pages, 186 chunks). Full per-question output: [results/retrieval_eval.md](results/retrieval_eval.md).
+
+FAISS returns a pool of 20 chunks. (a) keeps the FAISS order; (b) reorders the pool with the
+trained reranker. Both are cut to the top 5. A result counts as correct if the chunk contains the
+question's gold answer span.
+
+| System | recall@1 | recall@3 | recall@5 | MRR@5 |
+|---|---|---|---|---|
+| (a) FAISS only | 0.400 | 0.680 | 0.720 | 0.537 |
+| (b) FAISS + reranker | 0.360 | 0.640 | 0.680 | 0.483 |
+
+- The gold chunk was somewhere in the pool of 20 for 21 of 25 questions (0.840), so that is the
+  ceiling for any reranker on this set.
+- **The reranker adds nothing; it makes retrieval slightly worse.** It changed the gold chunk's
+  rank on 4 questions, and moved it down every time (once out of the top 5).
+- Why: `models/reranker.pkl` was trained on 6 examples (3 hard-coded queries, each with one
+  "positive" and one "negative" chunk chosen by `random.choice`), so its labels carry no signal.
+  The learned weights are 0.170 on cosine similarity, -0.0000072 on chunk length and -0.00077 on
+  query-word overlap. The order is mostly cosine again, but the small negative overlap weight can
+  push a chunk that shares more words with the query below one that shares fewer.
+- 13 of the 25 questions are deliberately worded differently from the passage. FAISS found 9 of
+  those 13 in the top 5, and 9 of the other 12.
+
+Reproduce (after adding the PDF to `data/documents/`):
+
+```
+python scripts/dump_chunks.py
+python eval.py --questions eval/questions.jsonl --pool 20 --cut 5 --out results/retrieval_eval.md
+```
+
+Limitations:
+
+- Small set: 25 questions, so one question moves recall by 0.04. The 0.04 gap between (a) and (b)
+  is a single question at each cut-off and is not evidence of anything beyond "no improvement".
+- Single document; results may not transfer to other PDFs.
+- The questions and gold spans in [eval/questions.jsonl](eval/questions.jsonl) were
+  **AI-generated** (Claude) and spot-checked by the author. Passages were picked on a fixed
+  schedule (every 7th chunk from chunk 4) and the set was committed before any retrieval was run.
+- One gold span per question; a different chunk that also answers the question counts as a miss.
+- The reranker was evaluated as shipped and was not retrained or tuned.
+
+---
+
 ## 📌 Example Use Cases
 
 * Research document search
